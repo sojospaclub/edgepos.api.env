@@ -1,0 +1,28 @@
+FROM node:16-alpine AS base
+RUN mkdir -p /home/node/app
+RUN chown -R node:node /home/node && chmod -R 770 /home/node
+
+FROM base as dev
+WORKDIR /home/node/app
+COPY --chown=node:node ["package.json", "yarn.lock", "tsconfig.*", "nest*", "./"]
+USER node
+EXPOSE 3000
+CMD ["yarn", "start:debug"]
+
+FROM base as builder
+WORKDIR /home/node/app
+COPY --chown=node:node ["package.json", "yarn.lock", "tsconfig.json", "./"]
+COPY --chown=node:node ["./src", "./src"]
+USER node
+RUN yarn install --pure-lockfile --silent 
+RUN yarn build
+
+FROM base
+ENV NODE_ENV=production
+WORKDIR /home/node/app
+COPY --chown=node:node ["package.json", "yarn.lock", "./"]
+COPY --chown=node:node --from=builder /home/node/app/dist ./dist
+USER node
+RUN yarn install --pure-lockfile --silent 
+EXPOSE 3000
+CMD ["yarn", "start:prod"]
